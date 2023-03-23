@@ -5,8 +5,17 @@
     "lib": [
       "DOM",
       "DOM.Iterable",
-      "ESNext"
+      "ESNext",
     ],
+    "baseUrl": "./",
+    "paths": {
+      "@/*": [
+        "src/*"
+      ],
+      "@components/*": [
+        "src/components/*"
+      ],
+    },
     "allowJs": false,
     "skipLibCheck": true,
     "esModuleInterop": false,
