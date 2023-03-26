@@ -1,7 +1,6 @@
 import { createId } from '@paralleldrive/cuid2';
-import { data } from '@/data';
 import { NodeKind, TreeNode, TreeNodeSchema } from '@/utils/tree';
-import { ReactNode, useEffect, useMemo, useState } from 'react';
+import { ReactNode, useMemo, useState } from 'react';
 import clsx from 'clsx';
 import {
   ChevronDownIcon,
@@ -9,6 +8,7 @@ import {
   DocumentIcon,
   FolderIcon,
   FolderOpenIcon,
+  PlusIcon,
 } from '@heroicons/react/24/outline';
 
 type FlatTreeNode = {
@@ -78,22 +78,18 @@ function getChildrenIds(
 }
 
 export default function FileExplorer({ data }: { data: unknown }) {
-  const treeData = useMemo(() => parseTreeData(data), [data]);
+  const [treeData, setTreeData] = useState(parseTreeData(data));
   const [selectedNodeId, setSelectedNodeId] = useState<string | undefined>(undefined);
-  const [visibleNodeIds, setVisibleNodeIds] = useState<Set<string>>(new Set());
+  const [visibleNodeIds, setVisibleNodeIds] = useState<Set<string>>(
+    new Set(new Set([treeData[0].id]))
+  );
   const [expandedNodeIds, setExpandedNodeIds] = useState<Set<string>>(new Set());
-  const maxExpandedNodes = treeData.filter((node) => node.kind === 'directory').length;
+  const maxExpandedNodes = useMemo(
+    () => treeData.filter((node) => node.kind === 'directory').length,
+    [treeData.length]
+  );
   // We only collapse all nodes if all the nodes are expanded
   const hasAllExpanded = expandedNodeIds.size === maxExpandedNodes;
-
-  useEffect(() => {
-    // We set the root node as visible here. We avoid passing the treeData
-    // directly to the state as this brings issues during development, as React
-    // in Strict Mode will re-calculate the memo and the visible node ids will
-    // not match.
-    const root = new Set([treeData[0].id]);
-    setVisibleNodeIds(root);
-  }, []);
 
   function handleNodeClick(id: string) {
     const node = treeData.find((node) => node.id === id);
@@ -156,13 +152,48 @@ export default function FileExplorer({ data }: { data: unknown }) {
     }
   }
 
+  function handleCreateFile(parentIndex: number) {
+    const parent = treeData[parentIndex];
+    const filename = prompt('Enter a filename');
+
+    const newFile: FlatTreeNode = {
+      id: createId(),
+      parentId: parent.id,
+      level: parent.level + 1,
+      name: filename || 'Untitled',
+      kind: 'file',
+      size: '0 B',
+      modified: 'Just now',
+    };
+
+    setTreeData([
+      ...treeData.slice(0, parentIndex + 1),
+      newFile,
+      ...treeData.slice(parentIndex + 1),
+    ]);
+
+    if (expandedNodeIds.has(parent.id)) {
+      setVisibleNodeIds((visibleNodeIds) => {
+        const newVisibleNodeIds = new Set(visibleNodeIds);
+
+        newVisibleNodeIds.add(newFile.id);
+
+        return newVisibleNodeIds;
+      });
+    }
+  }
+
   return (
     <div>
       {treeData.map((node, index) => (
         <FileExplorerNode
           append={
-            node.kind === 'directory' &&
-            index === 0 && <ToggleButton isExpanded={hasAllExpanded} onClick={handleToggle} />
+            node.kind === 'directory' ? (
+              <div className="flex">
+                <CreateFileButton onClick={() => handleCreateFile(index)} />
+                {index === 0 && <ToggleButton isExpanded={hasAllExpanded} onClick={handleToggle} />}
+              </div>
+            ) : null
           }
           isOpen={expandedNodeIds.has(node.id)}
           isSelected={selectedNodeId === node.id}
@@ -209,7 +240,7 @@ function FileExplorerNode({
   return (
     <div
       style={{ marginLeft: `${indent}rem` }}
-      className={clsx('flex items-center', {
+      className={clsx('flex items-center group', {
         'bg-cyan-50 text-cyan-600 rounded-md': isSelected,
       })}
     >
@@ -225,11 +256,16 @@ function FileExplorerNode({
             <FolderIcon className="inline-block w-4 h-4 mr-2" />
           )
         ) : null}
-        <div className="flex justify-between w-full">
-          {name} {size && <span className="text-gray-400 text-xs self-center">({size})</span>}
+        <div className="flex justify-between w-full group">
+          {name}{' '}
+          {size && (
+            <span className="text-gray-400 text-xs self-center group-hover:block hidden">
+              {size}
+            </span>
+          )}
         </div>
       </button>
-      {append}
+      {append && <div className="hidden group-hover:block">{append}</div>}
     </div>
   );
 }
@@ -246,6 +282,18 @@ function ToggleButton({ isExpanded, onClick }: { isExpanded: boolean; onClick: (
       ) : (
         <ChevronDownIcon className="inline-block w-4 h-4" />
       )}
+    </button>
+  );
+}
+
+function CreateFileButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      className="hover:bg-gray-300 w-5 h-5 rounded-md flex items-center justify-center"
+      onClick={onClick}
+      title="Create file"
+    >
+      <PlusIcon className="inline-block w-4 h-4" />
     </button>
   );
 }
