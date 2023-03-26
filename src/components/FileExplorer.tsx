@@ -1,9 +1,15 @@
 import { createId } from '@paralleldrive/cuid2';
 import { data } from '@/data';
 import { NodeKind, TreeNode, TreeNodeSchema } from '@/utils/tree';
-import { useEffect, useMemo, useState } from 'react';
+import { ReactNode, useEffect, useMemo, useState } from 'react';
 import clsx from 'clsx';
-import { DocumentIcon, FolderIcon, FolderOpenIcon } from '@heroicons/react/24/outline';
+import {
+  ChevronDownIcon,
+  ChevronUpIcon,
+  DocumentIcon,
+  FolderIcon,
+  FolderOpenIcon,
+} from '@heroicons/react/24/outline';
 
 type FlatTreeNode = {
   id: string;
@@ -76,6 +82,9 @@ export default function FileExplorer({ data }: { data: unknown }) {
   const [selectedNodeId, setSelectedNodeId] = useState<string | undefined>(undefined);
   const [visibleNodeIds, setVisibleNodeIds] = useState<Set<string>>(new Set());
   const [expandedNodeIds, setExpandedNodeIds] = useState<Set<string>>(new Set());
+  const maxExpandedNodes = treeData.filter((node) => node.kind === 'directory').length;
+  // We only collapse all nodes if all the nodes are expanded
+  const hasAllExpanded = expandedNodeIds.size === maxExpandedNodes;
 
   useEffect(() => {
     // We set the root node as visible here. We avoid passing the treeData
@@ -129,10 +138,32 @@ export default function FileExplorer({ data }: { data: unknown }) {
     setSelectedNodeId(id);
   }
 
+  function handleToggle() {
+    if (hasAllExpanded) {
+      setExpandedNodeIds(new Set());
+      setVisibleNodeIds(new Set([treeData[0].id]));
+    } else {
+      const newExpandedNodeIds = new Set<string>();
+
+      treeData.forEach((node) => {
+        if (node.kind === 'directory') {
+          newExpandedNodeIds.add(node.id);
+        }
+      });
+
+      setExpandedNodeIds(newExpandedNodeIds);
+      setVisibleNodeIds(new Set(treeData.map((node) => node.id)));
+    }
+  }
+
   return (
     <div>
-      {treeData.map((node) => (
+      {treeData.map((node, index) => (
         <FileExplorerNode
+          append={
+            node.kind === 'directory' &&
+            index === 0 && <ToggleButton isExpanded={hasAllExpanded} onClick={handleToggle} />
+          }
           isOpen={expandedNodeIds.has(node.id)}
           isSelected={selectedNodeId === node.id}
           key={node.id}
@@ -159,26 +190,31 @@ function FileExplorerNode({
   isSelected,
   onClick,
   indent,
+  append,
 }: {
-  name: string;
-  size?: string;
-  kind: NodeKind;
-  show: boolean;
+  append?: ReactNode;
+  indent: number;
   isOpen: boolean;
   isSelected: boolean;
+  kind: NodeKind;
+  name: string;
   onClick: () => void;
-  indent: number;
+  show: boolean;
+  size?: string;
 }) {
   if (!show) {
     return null;
   }
 
   return (
-    <div style={{ marginLeft: `${indent}rem` }}>
+    <div
+      style={{ marginLeft: `${indent}rem` }}
+      className={clsx('flex items-center', {
+        'bg-cyan-50 text-cyan-600 rounded-md': isSelected,
+      })}
+    >
       <button
-        className={clsx('flex items-center w-full py-0.5 px-2 focus:outline-2 outline-cyan-600', {
-          'bg-cyan-50 text-cyan-600 rounded-md': isSelected,
-        })}
+        className="flex items-center w-full py-0.5 px-2 focus:outline-2 outline-cyan-600"
         onClick={onClick}
       >
         {kind === 'file' ? <DocumentIcon className="inline-block w-4 h-4 mr-2" /> : null}
@@ -193,6 +229,23 @@ function FileExplorerNode({
           {name} {size && <span className="text-gray-400 text-xs self-center">({size})</span>}
         </div>
       </button>
+      {append}
     </div>
+  );
+}
+
+function ToggleButton({ isExpanded, onClick }: { isExpanded: boolean; onClick: () => void }) {
+  return (
+    <button
+      className="hover:bg-gray-300  hover: w-5 h-5 rounded-md flex items-center justify-center"
+      onClick={onClick}
+      title={isExpanded ? 'Collapse all' : 'Expand all'}
+    >
+      {isExpanded ? (
+        <ChevronUpIcon className="inline-block w-4 h-4" />
+      ) : (
+        <ChevronDownIcon className="inline-block w-4 h-4" />
+      )}
+    </button>
   );
 }
