@@ -44,7 +44,6 @@ export default function FileExplorerNode({
       handlerId: monitor.getHandlerId(),
     }),
     hover: (item, monitor) => {
-      console.log({ item });
       if (!ref.current) {
         return;
       }
@@ -95,8 +94,8 @@ export default function FileExplorerNode({
   return (
     <div
       style={{ marginLeft: `${indent}rem` }}
-      className={clsx('flex items-center group', {
-        'bg-cyan-50 text-cyan-600 rounded-md': isSelected,
+      className={clsx('flex items-center group text-gray-400', {
+        'bg-cyan-600 bg-opacity-50 rounded-md': isSelected,
         'opacity-50': isDragging,
       })}
       ref={ref}
@@ -104,7 +103,12 @@ export default function FileExplorerNode({
       {show ? (
         <>
           <button
-            className="flex items-center w-full py-0.5 px-2 focus:outline-2 outline-cyan-600"
+            className={clsx(
+              'flex items-center w-full py-0.5 px-2 focus:outline-2 outline-cyan-600 text-gray-400',
+              {
+                'text-cyan-400': isSelected,
+              }
+            )}
             onClick={onClick}
           >
             {kind === 'file' ? <DocumentIcon className="inline-block w-4 h-4 mr-2" /> : null}
@@ -115,13 +119,9 @@ export default function FileExplorerNode({
                 <FolderIcon className="inline-block w-4 h-4 mr-2" />
               )
             ) : null}
-            <div className="flex justify-between w-full group">
+            <div className="flex justify-between w-full group text-inherit">
               {name}{' '}
-              {size && (
-                <span className="text-gray-400 text-xs self-center group-hover:block hidden">
-                  {size}
-                </span>
-              )}
+              {size && <span className="text-xs self-center group-hover:block hidden">{size}</span>}
             </div>
           </button>
           {append && <div className="hidden group-hover:block">{append}</div>}

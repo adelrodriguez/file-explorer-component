@@ -33,7 +33,13 @@ function getChildrenIds(
   return childrenIds;
 }
 
-export default function FileExplorer({ data }: { data: unknown }) {
+export default function FileExplorer({
+  data,
+  onSelect,
+}: {
+  data: unknown;
+  onSelect: (node: FlatTreeNode) => void;
+}) {
   const [treeData, setTreeData] = useState(parseTreeData(data));
   const [selectedNodeId, setSelectedNodeId] = useState<string | undefined>(undefined);
   const [visibleNodeIds, setVisibleNodeIds] = useState<Set<string>>(
@@ -99,6 +105,7 @@ export default function FileExplorer({ data }: { data: unknown }) {
     }
 
     setSelectedNodeId(id);
+    onSelect(node);
   }
 
   function handleToggle() {
@@ -127,7 +134,7 @@ export default function FileExplorer({ data }: { data: unknown }) {
       id: createId(),
       parentId: parent.id,
       level: parent.level + 1,
-      name: filename || 'Untitled',
+      name: filename || 'untitled',
       kind: 'file',
       size: '0 B',
       modified: 'Just now',

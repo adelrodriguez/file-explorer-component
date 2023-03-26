@@ -9,7 +9,7 @@ export default function ToggleButton({
 }) {
   return (
     <button
-      className="hover:bg-gray-300  hover: w-5 h-5 rounded-md flex items-center justify-center"
+      className="hover:bg-cyan-600 bg-opacity-30 w-5 h-5 mx-1 rounded-md flex items-center justify-center"
       onClick={onClick}
       title={isExpanded ? 'Collapse all' : 'Expand all'}
     >
