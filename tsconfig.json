@@ -12,9 +12,6 @@
       "@/*": [
         "src/*"
       ],
-      "@components/*": [
-        "src/components/*"
-      ],
     },
     "allowJs": false,
     "skipLibCheck": true,
