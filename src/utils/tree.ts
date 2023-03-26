@@ -1,3 +1,4 @@
+import { createId } from '@paralleldrive/cuid2';
 import { z } from 'zod';
 
 export const NODE_KINDS = {
@@ -29,3 +30,44 @@ export const DirectoryNodeSchema: z.ZodType<DirectoryNode> = BaseDirectoryNodeSc
 
 export const TreeNodeSchema = z.union([DirectoryNodeSchema, FileNodeSchema]);
 export type TreeNode = z.infer<typeof TreeNodeSchema>;
+
+export type FlatTreeNode = {
+  id: string;
+  parentId?: string;
+  level: number;
+  name: string;
+} & ({ kind: 'file'; size: string; modified: string } | { kind: 'directory' });
+
+function flattenData(data: TreeNode, parentId?: string, level = 0): FlatTreeNode[] {
+  const id = createId();
+
+  if (data.kind === 'file') {
+    return [
+      {
+        id,
+        ...(parentId !== undefined && { parentId }),
+        level,
+        name: data.name,
+        kind: data.kind,
+        size: data.size,
+        modified: data.modified,
+      },
+    ];
+  }
+
+  const flatNode: FlatTreeNode = {
+    id,
+    ...(parentId !== undefined && { parentId }),
+    level,
+    name: data.name,
+    kind: data.kind,
+  };
+
+  const childNodes = data.children.flatMap((child) => flattenData(child, id, level + 1));
+
+  return [flatNode, ...childNodes];
+}
+
+export function parseTreeData(data: unknown): FlatTreeNode[] {
+  return flattenData(TreeNodeSchema.parse(data));
+}

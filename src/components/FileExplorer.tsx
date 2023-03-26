@@ -1,56 +1,12 @@
 import { createId } from '@paralleldrive/cuid2';
-import { NodeKind, TreeNode, TreeNodeSchema } from '@/utils/tree';
-import { ReactNode, useMemo, useState } from 'react';
-import clsx from 'clsx';
-import {
-  ChevronDownIcon,
-  ChevronUpIcon,
-  DocumentIcon,
-  FolderIcon,
-  FolderOpenIcon,
-  PlusIcon,
-} from '@heroicons/react/24/outline';
+import { useMemo, useState } from 'react';
 
-type FlatTreeNode = {
-  id: string;
-  parentId?: string;
-  level: number;
-  name: string;
-} & ({ kind: 'file'; size: string; modified: string } | { kind: 'directory' });
-
-function flattenData(data: TreeNode, parentId?: string, level = 0): FlatTreeNode[] {
-  const id = createId();
-
-  if (data.kind === 'file') {
-    return [
-      {
-        id,
-        ...(parentId !== undefined && { parentId }),
-        level,
-        name: data.name,
-        kind: data.kind,
-        size: data.size,
-        modified: data.modified,
-      },
-    ];
-  }
-
-  const flatNode: FlatTreeNode = {
-    id,
-    ...(parentId !== undefined && { parentId }),
-    level,
-    name: data.name,
-    kind: data.kind,
-  };
-
-  const childNodes = data.children.flatMap((child) => flattenData(child, id, level + 1));
-
-  return [flatNode, ...childNodes];
-}
-
-export function parseTreeData(data: unknown): FlatTreeNode[] {
-  return flattenData(TreeNodeSchema.parse(data));
-}
+import { DndProvider } from 'react-dnd';
+import { HTML5Backend } from 'react-dnd-html5-backend';
+import { FlatTreeNode, parseTreeData } from '@/utils/tree';
+import FileExplorerNode from '@/components/FileExplorerNode';
+import CreateFileButton from '@/components/CreateFileButton';
+import ToggleButton from '@/components/ToggleButton';
 
 function getChildrenIds(
   nodeIds: Set<string>,
@@ -91,6 +47,42 @@ export default function FileExplorer({ data }: { data: unknown }) {
   // We only collapse all nodes if all the nodes are expanded
   const hasAllExpanded = expandedNodeIds.size === maxExpandedNodes;
 
+  function hideDirectoryChildren(id: string) {
+    const newExpandedNodeIds = new Set(expandedNodeIds);
+    const newVisibleNodeIds = new Set(visibleNodeIds);
+
+    newExpandedNodeIds.delete(id);
+    // Get all the children of the node that is being collapsed
+    const visibleChildrenIds = getChildrenIds(visibleNodeIds, id, treeData);
+
+    visibleChildrenIds.forEach((childId) => newVisibleNodeIds.delete(childId));
+
+    setVisibleNodeIds(newVisibleNodeIds);
+    setExpandedNodeIds(newExpandedNodeIds);
+  }
+
+  function showDirectoryChildren(id: string) {
+    const newExpandedNodeIds = new Set(expandedNodeIds);
+    const newVisibleNodeIds = new Set(visibleNodeIds);
+
+    newExpandedNodeIds.add(id);
+    // Get all the expanded children of the node that is being expanded
+    // so that we can show them as well
+    const expandedChildrenIds = getChildrenIds(expandedNodeIds, id, treeData);
+
+    for (const child of treeData) {
+      if (
+        child.parentId &&
+        (child.parentId === id || expandedChildrenIds.includes(child.parentId))
+      ) {
+        newVisibleNodeIds.add(child.id);
+      }
+    }
+
+    setVisibleNodeIds(newVisibleNodeIds);
+    setExpandedNodeIds(newExpandedNodeIds);
+  }
+
   function handleNodeClick(id: string) {
     const node = treeData.find((node) => node.id === id);
 
@@ -99,36 +91,11 @@ export default function FileExplorer({ data }: { data: unknown }) {
     }
 
     if (node.kind === 'directory') {
-      setExpandedNodeIds((expandedNodeIds) => {
-        const newExpandedNodeIds = new Set(expandedNodeIds);
-        const newVisibleNodeIds = new Set(visibleNodeIds);
-
-        if (newExpandedNodeIds.has(id)) {
-          newExpandedNodeIds.delete(id);
-          // Get all the children of the node that is being collapsed
-          const visibleChildrenIds = getChildrenIds(visibleNodeIds, node.id, treeData);
-
-          visibleChildrenIds.forEach((childId) => newVisibleNodeIds.delete(childId));
-        } else {
-          newExpandedNodeIds.add(id);
-          // Get all the expanded children of the node that is being expanded
-          // so that we can show them as well
-          const expandedChildrenIds = getChildrenIds(expandedNodeIds, node.id, treeData);
-
-          for (const child of treeData) {
-            if (
-              child.parentId &&
-              (child.parentId === id || expandedChildrenIds.includes(child.parentId))
-            ) {
-              newVisibleNodeIds.add(child.id);
-            }
-          }
-        }
-
-        setVisibleNodeIds(newVisibleNodeIds);
-
-        return newExpandedNodeIds;
-      });
+      if (expandedNodeIds.has(id)) {
+        hideDirectoryChildren(id);
+      } else {
+        showDirectoryChildren(id);
+      }
     }
 
     setSelectedNodeId(id);
@@ -183,10 +150,30 @@ export default function FileExplorer({ data }: { data: unknown }) {
     }
   }
 
+  function handleMove(fromIndex: number, toIndex: number) {
+    const dragNode = treeData[fromIndex];
+    const targetNode = treeData[toIndex];
+
+    // TODO(adelrodriguez): Handle moving directories
+    if (dragNode.kind === 'directory') {
+      return;
+    }
+
+    const newTreeData = [...treeData];
+    dragNode.parentId = targetNode.parentId;
+    dragNode.level = targetNode.level;
+
+    newTreeData.splice(fromIndex, 1);
+    newTreeData.splice(toIndex, 0, dragNode);
+    setTreeData(newTreeData);
+  }
+
   return (
-    <div>
+    <DndProvider backend={HTML5Backend}>
       {treeData.map((node, index) => (
         <FileExplorerNode
+          index={index}
+          key={node.id}
           append={
             node.kind === 'directory' ? (
               <div className="flex">
@@ -197,7 +184,6 @@ export default function FileExplorer({ data }: { data: unknown }) {
           }
           isOpen={expandedNodeIds.has(node.id)}
           isSelected={selectedNodeId === node.id}
-          key={node.id}
           name={node.name}
           kind={node.kind}
           size={node.kind === 'file' ? node.size : undefined}
@@ -206,94 +192,14 @@ export default function FileExplorer({ data }: { data: unknown }) {
           }}
           show={visibleNodeIds.has(node.id)}
           indent={node.level}
+          move={handleMove}
+          onDragStart={() => {
+            if (node.kind === 'directory') {
+              hideDirectoryChildren(node.id);
+            }
+          }}
         />
       ))}
-    </div>
-  );
-}
-
-function FileExplorerNode({
-  name,
-  kind,
-  size,
-  show,
-  isOpen,
-  isSelected,
-  onClick,
-  indent,
-  append,
-}: {
-  append?: ReactNode;
-  indent: number;
-  isOpen: boolean;
-  isSelected: boolean;
-  kind: NodeKind;
-  name: string;
-  onClick: () => void;
-  show: boolean;
-  size?: string;
-}) {
-  if (!show) {
-    return null;
-  }
-
-  return (
-    <div
-      style={{ marginLeft: `${indent}rem` }}
-      className={clsx('flex items-center group', {
-        'bg-cyan-50 text-cyan-600 rounded-md': isSelected,
-      })}
-    >
-      <button
-        className="flex items-center w-full py-0.5 px-2 focus:outline-2 outline-cyan-600"
-        onClick={onClick}
-      >
-        {kind === 'file' ? <DocumentIcon className="inline-block w-4 h-4 mr-2" /> : null}
-        {kind === 'directory' ? (
-          isOpen ? (
-            <FolderOpenIcon className="inline-block w-4 h-4 mr-2" />
-          ) : (
-            <FolderIcon className="inline-block w-4 h-4 mr-2" />
-          )
-        ) : null}
-        <div className="flex justify-between w-full group">
-          {name}{' '}
-          {size && (
-            <span className="text-gray-400 text-xs self-center group-hover:block hidden">
-              {size}
-            </span>
-          )}
-        </div>
-      </button>
-      {append && <div className="hidden group-hover:block">{append}</div>}
-    </div>
-  );
-}
-
-function ToggleButton({ isExpanded, onClick }: { isExpanded: boolean; onClick: () => void }) {
-  return (
-    <button
-      className="hover:bg-gray-300  hover: w-5 h-5 rounded-md flex items-center justify-center"
-      onClick={onClick}
-      title={isExpanded ? 'Collapse all' : 'Expand all'}
-    >
-      {isExpanded ? (
-        <ChevronUpIcon className="inline-block w-4 h-4" />
-      ) : (
-        <ChevronDownIcon className="inline-block w-4 h-4" />
-      )}
-    </button>
-  );
-}
-
-function CreateFileButton({ onClick }: { onClick: () => void }) {
-  return (
-    <button
-      className="hover:bg-gray-300 w-5 h-5 rounded-md flex items-center justify-center"
-      onClick={onClick}
-      title="Create file"
-    >
-      <PlusIcon className="inline-block w-4 h-4" />
-    </button>
+    </DndProvider>
   );
 }
