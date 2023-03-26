@@ -104,9 +104,10 @@ export default function FileExplorerNode({
         <>
           <button
             className={clsx(
-              'flex items-center w-full py-0.5 px-2 focus:outline-2 outline-cyan-600 text-gray-400',
+              'flex items-center w-full py-0.5 px-2 focus:outline-2 outline-cyan-600 ',
               {
                 'text-cyan-400': isSelected,
+                'text-gray-400': !isSelected,
               }
             )}
             onClick={onClick}
